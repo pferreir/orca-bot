@@ -51,6 +51,10 @@ struct Args {
     #[clap(env, long, default_value_t = 16)]
     max_num_lines: u8,
 
+    /// Location of history file
+    #[clap(env, long, default_value = "history.csv")]
+    history_file: PathBuf,
+    
     /// Mastodon instance URL
     #[clap(env, long, required = true)]
     mastodon_instance_url: String,
