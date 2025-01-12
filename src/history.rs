@@ -1,10 +1,8 @@
-use std::fs::File;
+use std::{fs::File, path::{Path, PathBuf}};
 
 use anyhow::Result;
 use chrono::{DateTime, TimeZone, Utc};
 use serde::{Deserialize, Serialize};
-
-const HISTORY_FILE: &str = "history.txt";
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct LogEntry {
@@ -13,7 +11,10 @@ pub struct LogEntry {
     pub url: String,
 }
 
-pub struct Log(Vec<LogEntry>);
+pub struct Log {
+    state: Vec<LogEntry>,
+    file_path: PathBuf
+}
 
 pub struct LogIter<'t> {
     log: &'t Log,
@@ -24,10 +25,10 @@ impl<'t> Iterator for LogIter<'t> {
     type Item = &'t LogEntry;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.ptr >= self.log.0.len() {
+        if self.ptr >= self.log.state.len() {
             None
         } else {
-            let val = Some(&self.log.0[self.ptr]);
+            let val = Some(&self.log.state[self.ptr]);
             self.ptr += 1;
             val
         }
@@ -35,6 +36,33 @@ impl<'t> Iterator for LogIter<'t> {
 }
 
 impl Log {
+
+    pub fn new(file: impl AsRef<Path>) -> Result<Self> {
+        let mut s = Self {
+            file_path: file.as_ref().to_path_buf(),
+            state: Vec::new()
+        };
+        s.reload()?;
+        Ok(s)
+    }
+
+    pub fn reload(&mut self) -> Result<()> {
+        let f = File::options()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .open(&self.file_path)?;
+        let mut reader = csv::ReaderBuilder::new().has_headers(false).from_reader(f);
+        let res: Result<Vec<_>> = reader
+            .deserialize()
+            .map(|r| r.map_err(|e| e.into()))
+            .collect();
+        self.state = res?;
+        Ok(())
+    }
+    
+
     pub fn _iter_from_user<T: TimeZone>(
         &self,
         start: DateTime<T>,
@@ -43,12 +71,12 @@ impl Log {
         LogIter {
             log: self,
             ptr: self
-                .0
+                .state
                 .iter()
                 .enumerate()
                 .find(|(_n, e)| e.time > start && user.map(|u| u == e.user).unwrap_or(true))
                 .map(|(n, _e)| n)
-                .unwrap_or(self.0.len() + 1)
+                .unwrap_or(self.state.len() + 1)
                 .saturating_sub(1),
         }
     }
@@ -62,7 +90,7 @@ impl Log {
             .append(true)
             .truncate(false)
             .create(true)
-            .open(HISTORY_FILE)?;
+            .open(&self.file_path)?;
 
         let mut writer = csv::WriterBuilder::new().has_headers(false).from_writer(f);
         let entry = LogEntry {
@@ -76,23 +104,8 @@ impl Log {
         writer.flush()?;
 
         // log to memory
-        self.0.push(entry);
+        self.state.push(entry);
 
         Ok(())
     }
-}
-
-pub fn load_log() -> Result<Log> {
-    let f = File::options()
-        .read(true)
-        .write(true)
-        .create(true)
-        .truncate(false)
-        .open(HISTORY_FILE)?;
-    let mut reader = csv::ReaderBuilder::new().has_headers(false).from_reader(f);
-    let res: Result<Vec<_>> = reader
-        .deserialize()
-        .map(|r| r.map_err(|e| e.into()))
-        .collect();
-    res.map(Log)
 }

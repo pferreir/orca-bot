@@ -129,7 +129,7 @@ async fn main() -> Result<()> {
 
     let args = Args::parse();
 
-    let mut history = history::load_log()?;
+    let mut history = Log::new(args.history_file)?;
 
     log::info!("orca-bot has started! 🎛️ 🤖");
 

@@ -1,4 +1,4 @@
-FROM rust:1.81 as build
+FROM docker.io/rust:1.81 AS build
 
 # empty project
 RUN USER=root cargo new --bin orca-bot
@@ -25,12 +25,20 @@ RUN cargo build --release
 # stage 2 - actual image
 FROM docker.io/ubuntu:24.04
 
+ARG user=1000
+
 RUN apt update
 RUN apt install -y ffmpeg
 RUN mkdir /roms
+RUN mkdir /app
 VOLUME /log
 
-COPY --from=build /orca-bot/target/release/orca-bot .
+COPY --from=build /orca-bot/target/release/orca-bot /app
 COPY contrib/orca.rom /roms
 
-CMD ["./orca-bot", "/roms/orca.rom", "--history-file", "/log/history.csv"]
+RUN chown -R $user:$user /app
+RUN chown -R $user:$user /roms
+
+USER $user
+
+CMD ["/app/orca-bot", "/roms/orca.rom", "--history-file", "/log/history.csv"]
