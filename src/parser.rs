@@ -88,7 +88,7 @@ pub fn parse_html(html: &str, parse_config: &ParseConfig) -> Result<OrcaSource> 
     let plain_str = htmd::convert(html)?;
     let plain_lines: Vec<_> = plain_str.lines().filter(|l| !l.trim().is_empty()).collect();
 
-    if !plain_lines[0].contains("@orcabot") {
+    if !plain_lines[0].contains("@orcabot") || !plain_lines[0].contains("#run") {
         return Err(ParseError::NoPreludeFound.into());
     }
 
