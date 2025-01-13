@@ -2,8 +2,11 @@ use std::{path::Path, time::Duration};
 
 use anyhow::{anyhow, Result};
 use megalodon::{
-    entities::{Attachment, StatusVisibility, UploadMedia},
-    megalodon::{PostStatusInputOptions, PostStatusOutput, UploadMediaInputOptions},
+    entities::{notification::NotificationType, Attachment, StatusVisibility, UploadMedia},
+    megalodon::{
+        GetNotificationsInputOptions, PostStatusInputOptions, PostStatusOutput,
+        UploadMediaInputOptions,
+    },
     Megalodon,
 };
 use tokio::time;
@@ -29,7 +32,31 @@ impl Client {
     ) -> Result<Vec<(String, String, (String, String), String)>> {
         Ok(self
             .client
-            .get_notifications(None)
+            .get_notifications(Some(&GetNotificationsInputOptions {
+                limit: None,
+                max_id: None,
+                since_id: None,
+                min_id: None,
+                exclude_types: Some(vec![
+                    // only keep Mention
+                    NotificationType::Follow,
+                    NotificationType::FollowRequest,
+                    NotificationType::Reblog,
+                    NotificationType::Favourite,
+                    NotificationType::PollVote,
+                    NotificationType::PollExpired,
+                    NotificationType::Status,
+                    NotificationType::Reaction,
+                    NotificationType::Update,
+                    NotificationType::Move,
+                    NotificationType::AdminSignup,
+                    NotificationType::AdminReport,
+                    NotificationType::GroupInvited,
+                    NotificationType::App,
+                    NotificationType::Unknown,
+                ]),
+                account_id: None,
+            }))
             .await?
             .json
             .iter()

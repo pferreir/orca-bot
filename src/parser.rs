@@ -53,7 +53,7 @@ pub struct ParseConfig {
 }
 
 fn parse_plain(text: &str, parse_config: &ParseConfig) -> Result<OrcaSource> {
-    let re = Regex::new(r"([a-zA-Z0-9*#\.*=]+\s*\n)*[a-zA-Z0-9*#\.*=]+\s*\n?")?;
+    let re = Regex::new(r"([a-zA-Z0-9#\.\*=]+\s*\n)*[a-zA-Z0-9#\.\*=]+\s*\n?")?;
 
     match re.find(text) {
         Some(m) => {
@@ -92,7 +92,13 @@ pub fn parse_html(html: &str, parse_config: &ParseConfig) -> Result<OrcaSource> 
         return Err(ParseError::NoPreludeFound.into());
     }
 
-    parse_plain(&plain_lines[1..].join("\n"), parse_config)
+    // little quirk of markdown conversion: it escapes asterisks
+    let unescaped_lines: Vec<_> = plain_lines[1..]
+        .iter()
+        .map(|l| l.replace(r"\*", "*"))
+        .collect();
+
+    parse_plain(&unescaped_lines.join("\n"), parse_config)
 }
 
 #[cfg(test)]
