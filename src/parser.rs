@@ -49,7 +49,7 @@ pub enum ParseError {
 
 pub struct ParseConfig {
     pub max_line_size: u8,
-    pub max_num_lines: u8
+    pub max_num_lines: u8,
 }
 
 fn parse_plain(text: &str, parse_config: &ParseConfig) -> Result<OrcaSource> {

@@ -1,7 +1,4 @@
-use std::{
-    path::Path,
-    process::Command,
-};
+use std::{path::Path, process::Command};
 
 use anyhow::{anyhow, Context, Result};
 
@@ -36,10 +33,7 @@ pub fn encode<ScreenDir: AsRef<Path>, AudioFile: AsRef<Path>, OutFile: AsRef<Pat
             "-f",
             "f32le",
             "-i",
-            audio_file
-                .as_ref()
-                .to_str()
-                .context("Invalid file name")?,
+            audio_file.as_ref().to_str().context("Invalid file name")?,
             "-c:v",
             "libx264",
             "-c:a",
@@ -57,5 +51,4 @@ pub fn encode<ScreenDir: AsRef<Path>, AudioFile: AsRef<Path>, OutFile: AsRef<Pat
         log::error!("{}", &String::from_utf8_lossy(&out.stderr));
         Err(anyhow!("Command returned an error"))
     }
-
 }

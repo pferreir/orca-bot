@@ -35,7 +35,7 @@ impl<'t> VMWrapper<'t> {
     pub fn run(
         &self,
         rom_path: impl AsRef<Path>,
-        input: impl Iterator<Item=&'t [char]>,
+        input: impl Iterator<Item = &'t [char]>,
         n_frames: usize,
     ) -> Result<(u16, u16)> {
         let mut f = std::fs::File::open(rom_path.as_ref())
@@ -112,11 +112,8 @@ impl<'t> VMWrapper<'t> {
             let Output { frame, .. } = out;
             out.check()?;
 
-            let mut f = File::create(
-                self.screen_dir
-                    .join(format!("out_{frame_n:05}.rgba")),
-            )
-            .context("Can't open image output file")?;
+            let mut f = File::create(self.screen_dir.join(format!("out_{frame_n:05}.rgba")))
+                .context("Can't open image output file")?;
             f.write(frame).context("Can't write to file")?;
             f.flush()?;
         }

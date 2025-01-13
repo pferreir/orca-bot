@@ -1,4 +1,7 @@
-use std::{fs::File, path::{Path, PathBuf}};
+use std::{
+    fs::File,
+    path::{Path, PathBuf},
+};
 
 use anyhow::Result;
 use chrono::{DateTime, TimeZone, Utc};
@@ -13,7 +16,7 @@ pub struct LogEntry {
 
 pub struct Log {
     state: Vec<LogEntry>,
-    file_path: PathBuf
+    file_path: PathBuf,
 }
 
 pub struct LogIter<'t> {
@@ -36,11 +39,10 @@ impl<'t> Iterator for LogIter<'t> {
 }
 
 impl Log {
-
     pub fn new(file: impl AsRef<Path>) -> Result<Self> {
         let mut s = Self {
             file_path: file.as_ref().to_path_buf(),
-            state: Vec::new()
+            state: Vec::new(),
         };
         s.reload()?;
         Ok(s)
@@ -61,13 +63,8 @@ impl Log {
         self.state = res?;
         Ok(())
     }
-    
 
-    pub fn _iter_from_user<T: TimeZone>(
-        &self,
-        start: DateTime<T>,
-        user: Option<&str>,
-    ) -> LogIter {
+    pub fn _iter_from_user<T: TimeZone>(&self, start: DateTime<T>, user: Option<&str>) -> LogIter {
         LogIter {
             log: self,
             ptr: self

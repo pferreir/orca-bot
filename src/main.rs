@@ -54,11 +54,11 @@ struct Args {
     /// Location of history file
     #[clap(env, long, default_value = "history.csv")]
     history_file: PathBuf,
-    
+
     /// Mastodon instance URL
     #[clap(env, long, required = true)]
     mastodon_instance_url: String,
-    
+
     /// Mastodon access token
     #[clap(env, long, required = true)]
     mastodon_access_token: String,
@@ -144,48 +144,54 @@ async fn main() -> Result<()> {
         for (notif_id, post_id, (username, url), content) in client.get_notifications().await? {
             log::info!("Processing post {post_id} from {username} ({url})");
 
-            if !user_rate_is_ok(
-                &history,
-                &username,
-                Duration::from_secs(args.min_wait_interval as u64),
-                args.max_requests_hour,
-            ) {
-                log::warn!("Request from {username} ignored due to rate limit");
-                client.clear_notification(&notif_id).await?;
-                continue;
-            }
-
             match parse_html(&content, &parse_config) {
                 Ok(source) => {
                     log::debug!("HTML OK");
-                    match run_job(&args.rom, source.iter_lines(), args.native, &args.args) {
-                        Ok(video_path) => {
-                            let out_file = video_path.as_ref().join("out.mp4");
-                            log::info!(
-                                "File is {} KB long",
-                                std::fs::metadata(&out_file)?.size() / 1024
-                            );
-                            if !args.do_not_post {
-                                log::info!("Posting to mastodon, replying to {post_id}");
 
-                                // Post on Mastodon
-                                let url =
-                                    client.post_result(&username, &post_id, &out_file).await?;
-                                client.clear_notification(&notif_id).await?;
-                                log::info!("All done! {url}");
-                                history.log(Utc::now(), &username, &url)?;
-                            } else {
-                                log::info!("All done! (wink wink!)");
+                    if user_rate_is_ok(
+                        &history,
+                        &username,
+                        Duration::from_secs(args.min_wait_interval as u64),
+                        args.max_requests_hour,
+                    ) {
+                        match run_job(&args.rom, source.iter_lines(), args.native, &args.args) {
+                            Ok(video_path) => {
+                                let out_file = video_path.as_ref().join("out.mp4");
+                                log::info!(
+                                    "File is {} KB long",
+                                    std::fs::metadata(&out_file)?.size() / 1024
+                                );
+                                if !args.do_not_post {
+                                    log::info!("Posting to mastodon, replying to {post_id}");
+
+                                    // Post on Mastodon
+                                    let url =
+                                        client.post_result(&username, &post_id, &out_file).await?;
+                                    client.clear_notification(&notif_id).await?;
+                                    log::info!("All done! {url}");
+                                    history.log(Utc::now(), &username, &url)?;
+                                } else {
+                                    log::info!("All done! (wink wink!)");
+                                }
+
+                                // skip to next notification
+                                continue;
+                            }
+                            Err(e) => {
+                                log::error!("Failed to run job for post {post_id}: {e}");
                             }
                         }
-                        Err(e) => {
-                            log::error!("Failed to run job for post {post_id}: {e}");
-                        }
+                    } else {
+                        log::warn!("Request from {username} ignored due to rate limit");
                     }
                 }
                 Err(e) => {
-                    log::error!("Can't parse post {post_id}: {e}");
+                    log::warn!("Ignored {post_id}: {e}");
                 }
+            };
+
+            if !args.do_not_post {
+                client.clear_notification(&notif_id).await?;
             }
         }
 
