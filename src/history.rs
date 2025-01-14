@@ -64,7 +64,7 @@ impl Log {
         Ok(())
     }
 
-    pub fn _iter_from_user<T: TimeZone>(&self, start: DateTime<T>, user: Option<&str>) -> LogIter {
+    pub fn _iter_from_for_user<T: TimeZone>(&self, start: DateTime<T>, user: Option<&str>) -> LogIter {
         LogIter {
             log: self,
             ptr: self
@@ -78,8 +78,8 @@ impl Log {
         }
     }
 
-    pub fn iter_from_user<T: TimeZone>(&self, start: DateTime<T>, user: &str) -> LogIter {
-        self._iter_from_user(start, Some(user))
+    pub fn iter_from_for_user<T: TimeZone>(&self, start: DateTime<T>, user: &str) -> LogIter {
+        self._iter_from_for_user(start, Some(user))
     }
 
     pub fn log<T: TimeZone>(&mut self, time: DateTime<T>, user: &str, url: &str) -> Result<()> {

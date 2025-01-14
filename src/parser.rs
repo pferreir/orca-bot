@@ -41,13 +41,14 @@ pub enum ParseError {
     MismatchLineLengths,
     #[error("No Orca source code found")]
     NoCodeFound,
-    #[error("No call to @orcabot found")]
+    #[error("No run tag found")]
     NoPreludeFound,
     #[error("Lines are too long")]
     LinesTooLong,
 }
 
-pub struct ParseConfig {
+pub struct ParseConfig<'t> {
+    pub tag: &'t str,
     pub max_line_size: u8,
     pub max_num_lines: u8,
 }
@@ -88,7 +89,7 @@ pub fn parse_html(html: &str, parse_config: &ParseConfig) -> Result<OrcaSource> 
     let plain_str = htmd::convert(html)?;
     let plain_lines: Vec<_> = plain_str.lines().filter(|l| !l.trim().is_empty()).collect();
 
-    if !plain_lines[0].contains("@orcabot") || !plain_lines[0].contains("#run") {
+    if !plain_lines[0].contains(parse_config.tag) {
         return Err(ParseError::NoPreludeFound.into());
     }
 
@@ -108,6 +109,7 @@ mod tests {
     const DEFAULT_PARSE_CONFIG: ParseConfig = ParseConfig {
         max_line_size: 16,
         max_num_lines: 16,
+        tag: "run",
     };
 
     #[test]
@@ -120,14 +122,21 @@ mod tests {
 
     #[test]
     fn test_parsing_html_ok() {
-        let input = "<p><span class=\"h-card\" translate=\"no\"><a href=\"https://fedi.turbofish.cc/@orcabot\" class=\"u-url mention\">@<span>orcabot</span></a></span><br />.....C8.........<br />......8TCDGCGDCE<br />....81X..D..C2..<br />..........Y..A4.<br />...........=0...</p>";
+        let input = "<p><span class=\"h-card\" translate=\"no\"><a href=\"https://fedi.turbofish.cc/@orcabot\" class=\"u-url mention\">@<span>orcabot</span></a></span> <a href=\"https://mastodon.xyz/tags/run\" class=\"mention hashtag status-link\" rel=\"nofollow noopener noreferrer\" target=\"_blank\">#<span>run</span></a><br />.....C8.........<br />......8TCDGCGDCE<br />....81X..D..C2..<br />..........Y..A4.<br />...........=0...</p>";
         let OrcaSource { data, width } = parse_html(input, &DEFAULT_PARSE_CONFIG).unwrap();
         assert!(data == ".....C8...............8TCDGCGDCE....81X..D..C2............Y..A4............=0...".chars().collect::<Vec<_>>());
         assert!(width == 16);
 
-        let input = "<p><span class=\"h-card\" translate=\"no\"><a href=\"https://fedi.turbofish.cc/@orcabot\" class=\"u-url mention\" rel=\"nofollow noopener noreferrer\" target=\"_blank\">@<span>orcabot</span></a></span> please run this<br>.....C8.........<br>......8TCDGCGDCE<br>....81X..D..C2..<br>..........Y..A4.<br>...........=0...</p>";
+        let input = "<p><span class=\"h-card\" translate=\"no\"><a href=\"https://fedi.turbofish.cc/@orcabot\" class=\"u-url mention\" rel=\"nofollow noopener noreferrer\" target=\"_blank\">@<span>orcabot</span></a></span> please <a href=\"https://mastodon.xyz/tags/run\" class=\"mention hashtag status-link\" rel=\"nofollow noopener noreferrer\" target=\"_blank\">#<span>run</span></a> this<br>.....C8.........<br>......8TCDGCGDCE<br>....81X..D..C2..<br>..........Y..A4.<br>...........=0...</p>";
         let OrcaSource { data, width } = parse_html(input, &DEFAULT_PARSE_CONFIG).unwrap();
         assert!(data == ".....C8...............8TCDGCGDCE....81X..D..C2............Y..A4............=0...".chars().collect::<Vec<_>>());
         assert!(width == 16);
+    }
+
+    #[test]
+    #[should_panic(expected = "No run tag found")]
+    fn test_parsing_html_fail_no_tag() {
+        let input = "<p><span class=\"h-card\" translate=\"no\"><a href=\"https://fedi.turbofish.cc/@orcabot\" class=\"u-url mention\">@<span>orcabot</span></a></span><br />.....C8.........<br />......8TCDGCGDCE<br />....81X..D..C2..<br />..........Y..A4.<br />...........=0...</p>";
+        parse_html(input, &DEFAULT_PARSE_CONFIG).unwrap();
     }
 }

@@ -35,12 +35,12 @@ struct Args {
     #[clap(long)]
     do_not_post: bool,
 
-    /// Minimum interval between requests from the same user (seconds)
+    /// Minimum interval between requests from the same account (seconds)
     #[clap(env, long, default_value_t = 30)]
     min_wait_interval: usize,
 
-    /// Maximum number of requests from the same user in an hour
-    #[clap(env, long, default_value_t = 5)]
+    /// Maximum number of requests from the same account in an hour
+    #[clap(env, long, default_value_t = 10)]
     max_requests_hour: usize,
 
     /// Maximum length of lines
@@ -54,6 +54,10 @@ struct Args {
     /// Location of history file
     #[clap(env, long, default_value = "history.csv")]
     history_file: PathBuf,
+
+    /// Tag which should be mentioned for the code to be run
+    #[clap(env, long, default_value = "run")]
+    run_tag: String,    
 
     /// Mastodon instance URL
     #[clap(env, long, required = true)]
@@ -94,7 +98,7 @@ fn run_job<'t>(
     Ok(screen_dir)
 }
 
-/// Check that the user rate limits haven't been crossed
+/// Check that the aaccount rate limits haven't been crossed
 fn user_rate_is_ok(
     history: &Log,
     username: &str,
@@ -102,18 +106,18 @@ fn user_rate_is_ok(
     max_requests_hour: usize,
 ) -> bool {
     if history
-        .iter_from_user(Local::now() - min_wait_interval, username)
+        .iter_from_for_user(Local::now() - min_wait_interval, username)
         .next()
         .is_some()
     {
-        // there is at least one history entry from this user in the last N seconds
+        // there is at least one history entry from this account in the last N seconds
         false
     } else if history
-        .iter_from_user(Local::now() - Duration::from_secs(60 * 60), username)
+        .iter_from_for_user(Local::now() - Duration::from_secs(60 * 60), username)
         .count()
         >= max_requests_hour
     {
-        // there are more then N requests from this user in the last hours
+        // there are more then N requests from this account in the last hours
         false
     } else {
         true
@@ -134,6 +138,7 @@ async fn main() -> Result<()> {
     log::info!("orca-bot has started! 🎛️ 🤖");
 
     let parse_config = ParseConfig {
+        tag: &args.run_tag,
         max_line_size: args.max_line_length,
         max_num_lines: args.max_num_lines,
     };
@@ -144,10 +149,12 @@ async fn main() -> Result<()> {
         for (notif_id, post_id, (username, url), content) in client.get_notifications().await? {
             log::info!("Processing post {post_id} from {username} ({url})");
 
+            // look for valid HTML
             match parse_html(&content, &parse_config) {
                 Ok(source) => {
                     log::debug!("HTML OK");
 
+                    // first of all, let's check that the account is not hammering us
                     if user_rate_is_ok(
                         &history,
                         &username,
@@ -156,6 +163,7 @@ async fn main() -> Result<()> {
                     ) {
                         match run_job(&args.rom, source.iter_lines(), args.native, &args.args) {
                             Ok(video_path) => {
+                                // this means the encoding went well, let's log the size of the file and get to posting it
                                 let out_file = video_path.as_ref().join("out.mp4");
                                 log::info!(
                                     "File is {} KB long",
@@ -164,7 +172,7 @@ async fn main() -> Result<()> {
                                 if !args.do_not_post {
                                     log::info!("Posting to mastodon, replying to {post_id}");
 
-                                    // Post on Mastodon
+                                    // post on Mastodon
                                     let url =
                                         client.post_result(&username, &post_id, &out_file).await?;
                                     client.clear_notification(&notif_id).await?;
