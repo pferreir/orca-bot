@@ -1,15 +1,19 @@
 use std::{
+    fs::{self, File},
+    io::{stdin, Read},
     os::unix::fs::MetadataExt,
-    path::{Path, PathBuf},
+    path::Path,
     time::Duration,
 };
 
 use anyhow::{Context, Result};
 use chrono::prelude::*;
 use clap::Parser;
+use cli::{RunArgs, SubCommands};
 use tempfile::TempDir;
 use tokio::time;
 
+mod cli;
 mod encoding;
 mod history;
 mod mastodon;
@@ -18,59 +22,7 @@ mod vm;
 
 use history::Log;
 use mastodon::Client;
-use parser::{parse_html, ParseConfig};
-
-/// Uxn runner
-#[derive(Parser)]
-#[clap(author, version, about, long_about = None)]
-struct Args {
-    /// ROM to load and execute
-    rom: PathBuf,
-
-    /// Use the native Uxn implementation
-    #[clap(long)]
-    native: bool,
-
-    /// Don't post on Mastodon
-    #[clap(long)]
-    do_not_post: bool,
-
-    /// Minimum interval between requests from the same account (seconds)
-    #[clap(env, long, default_value_t = 30)]
-    min_wait_interval: usize,
-
-    /// Maximum number of requests from the same account in an hour
-    #[clap(env, long, default_value_t = 10)]
-    max_requests_hour: usize,
-
-    /// Maximum length of lines
-    #[clap(env, long, default_value_t = 16)]
-    max_line_length: u8,
-
-    /// Maximum number of lines
-    #[clap(env, long, default_value_t = 16)]
-    max_num_lines: u8,
-
-    /// Location of history file
-    #[clap(env, long, default_value = "history.csv")]
-    history_file: PathBuf,
-
-    /// Tag which should be mentioned for the code to be run
-    #[clap(env, long, default_value = "run")]
-    run_tag: String,    
-
-    /// Mastodon instance URL
-    #[clap(env, long, required = true)]
-    mastodon_instance_url: String,
-
-    /// Mastodon access token
-    #[clap(env, long, required = true)]
-    mastodon_access_token: String,
-
-    /// Arguments to pass into the VM
-    #[arg(last = true)]
-    args: Vec<String>,
-}
+use parser::{parse_html, parse_orca_code, ParseConfig};
 
 /// Run a simulation and video encoding job
 fn run_job<'t>(
@@ -124,22 +76,14 @@ fn user_rate_is_ok(
     }
 }
 
-#[tokio::main]
-async fn main() -> Result<()> {
-    let env = env_logger::Env::default()
-        .filter_or("LOG", "info")
-        .write_style_or("LOG", "always");
-    env_logger::init_from_env(env);
-
-    let args = Args::parse();
-
+async fn run_cmd(args: RunArgs) -> Result<()> {
     let mut history = Log::new(args.history_file)?;
 
     log::info!("orca-bot has started! 🎛️ 🤖");
 
     let parse_config = ParseConfig {
         tag: &args.run_tag,
-        max_line_size: args.max_line_length,
+        max_line_length: args.max_line_length,
         max_num_lines: args.max_num_lines,
     };
 
@@ -205,4 +149,62 @@ async fn main() -> Result<()> {
 
         time::sleep(Duration::from_secs(60)).await;
     }
+}
+
+async fn exec_cmd(
+    rom: impl AsRef<Path>,
+    input: Option<impl AsRef<Path>>,
+    output: impl AsRef<Path>,
+    parse_config: &ParseConfig<'_>,
+    native: bool,
+    args: &Vec<String>,
+) -> Result<()> {
+    let mut input: Box<dyn Read> = match input {
+        Some(f) => Box::new(File::open(f.as_ref())?),
+        None => Box::new(stdin()),
+    };
+
+    let mut text = Vec::new();
+
+    input.read_to_end(&mut text)?;
+
+    let source = parse_orca_code(&String::from_utf8(text)?, parse_config)?;
+
+    let dir = run_job(rom, source.iter_lines(), native, args)?;
+
+    fs::copy(dir.as_ref().join("out.mp4"), output)?;
+
+    Ok(())
+}
+
+#[tokio::main]
+async fn main() -> Result<()> {
+    let env = env_logger::Env::default()
+        .filter_or("LOG", "info")
+        .write_style_or("LOG", "always");
+    env_logger::init_from_env(env);
+
+    let args = cli::Cli::parse();
+
+    match args.command {
+        SubCommands::Run(args) => run_cmd(args).await?,
+        SubCommands::Exec {
+            rom,
+            output,
+            input,
+            max_line_length,
+            max_num_lines,
+            native,
+            args,
+        } => {
+            let parse_config = ParseConfig {
+                max_line_length,
+                max_num_lines,
+                ..Default::default()
+            };
+            exec_cmd(rom, input, output, &parse_config, native, &args).await?
+        }
+    }
+
+    Ok(())
 }

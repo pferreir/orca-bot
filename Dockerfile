@@ -41,4 +41,4 @@ RUN chown -R $user:$user /roms
 
 USER $user
 
-CMD ["/app/orca-bot", "/roms/orca.rom", "--history-file", "/log/history.csv"]
+CMD ["/app/orca-bot", "run", "/roms/orca.rom", "--history-file", "/log/history.csv"]

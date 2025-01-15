@@ -49,11 +49,17 @@ pub enum ParseError {
 
 pub struct ParseConfig<'t> {
     pub tag: &'t str,
-    pub max_line_size: u8,
+    pub max_line_length: u8,
     pub max_num_lines: u8,
 }
 
-fn parse_plain(text: &str, parse_config: &ParseConfig) -> Result<OrcaSource> {
+impl<'t> Default for ParseConfig<'t> {
+    fn default() -> Self {
+        Self { tag: "run", max_line_length: 64, max_num_lines: 64 }
+    }
+}
+
+pub(crate) fn parse_orca_code(text: &str, parse_config: &ParseConfig) -> Result<OrcaSource> {
     let re = Regex::new(r"([a-zA-Z0-9#\.\*=]+\s*\n)*[a-zA-Z0-9#\.\*=]+\s*\n?")?;
 
     match re.find(text) {
@@ -67,7 +73,7 @@ fn parse_plain(text: &str, parse_config: &ParseConfig) -> Result<OrcaSource> {
 
             let first_len = lines[0].len();
 
-            if first_len > parse_config.max_line_size as usize {
+            if first_len > parse_config.max_line_length as usize {
                 return Err(ParseError::LinesTooLong.into());
             }
 
@@ -99,7 +105,7 @@ pub fn parse_html(html: &str, parse_config: &ParseConfig) -> Result<OrcaSource> 
         .map(|l| l.replace(r"\*", "*"))
         .collect();
 
-    parse_plain(&unescaped_lines.join("\n"), parse_config)
+    parse_orca_code(&unescaped_lines.join("\n"), parse_config)
 }
 
 #[cfg(test)]
@@ -107,7 +113,7 @@ mod tests {
     use super::*;
 
     const DEFAULT_PARSE_CONFIG: ParseConfig = ParseConfig {
-        max_line_size: 16,
+        max_line_length: 16,
         max_num_lines: 16,
         tag: "run",
     };
@@ -115,7 +121,7 @@ mod tests {
     #[test]
     fn test_parsing_ok() {
         let input = ".....C8.........\n......8TCDGCGDCE\n....81X..D..C2..\n..........Y..A4.\n...........=0...";
-        let OrcaSource { data, width } = parse_plain(input, &DEFAULT_PARSE_CONFIG).unwrap();
+        let OrcaSource { data, width } = parse_orca_code(input, &DEFAULT_PARSE_CONFIG).unwrap();
         assert!(data == ".....C8...............8TCDGCGDCE....81X..D..C2............Y..A4............=0...".chars().collect::<Vec<_>>());
         assert!(width == 16);
     }
