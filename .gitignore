@@ -1,3 +1,2 @@
 target/*
 .env.production
-Cargo.lock
