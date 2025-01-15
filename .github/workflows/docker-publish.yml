@@ -1,10 +1,5 @@
 name: Docker
 
-# This workflow uses actions that are not certified by GitHub.
-# They are provided by a third-party and are governed by
-# separate terms of service, privacy policy, and support
-# documentation.
-
 on:
   schedule:
     - cron: '16 14 * * *'
@@ -36,6 +31,10 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      # Checkout submodules
+      - name: Checkout submodules
+        run: git submodule init && git submodule update 
 
       # Install the cosign tool except on PR
       # https://github.com/sigstore/cosign-installer
