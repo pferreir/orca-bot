@@ -158,4 +158,20 @@ impl Client {
             }
         }
     }
+
+    pub async fn message_account(&self, account: &str, message: &str, in_reply_to_id: Option<String>) -> Result<()> {
+        self.client.post_status(format!("@{account} {message}"), Some(&PostStatusInputOptions {
+            media_ids: None,
+            poll: None,
+            in_reply_to_id,
+            sensitive: Some(false),
+            spoiler_text: None,
+            visibility: Some(StatusVisibility::Direct),
+            scheduled_at: None,
+            language: Some("en".into()),
+            quote_id: None,
+        })).await?;
+
+        Ok(())
+    }
 }

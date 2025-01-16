@@ -24,6 +24,8 @@ use history::Log;
 use mastodon::Client;
 use parser::{parse_html, parse_orca_code, ParseConfig};
 
+const GREETING: &str = "Hey there 🤖 BLEEP BLOP 🎵 !";
+
 /// Run a simulation and video encoding job
 fn run_job<'t>(
     rom: impl AsRef<Path>,
@@ -135,10 +137,41 @@ async fn run_cmd(args: RunArgs) -> Result<()> {
                         }
                     } else {
                         log::warn!("Request from {username} ignored due to rate limit");
+                        if !args.do_not_post {
+                            client
+                                .message_account(
+                                    &username,
+                                    "{GREETING}\n\nUnfortunately you're messaging me too much. \
+                                             Please wait some minutes before trying again. \
+                                             Sorry about that!",
+                                    Some(post_id),
+                                )
+                                .await?;
+                        }
                     }
                 }
                 Err(e) => {
-                    log::warn!("Ignored {post_id}: {e}");
+                    match e {
+                        parser::ParseError::NoPreludeFound => {
+                            // Skip it
+                            log::debug!("Skipped {post_id}: doesn't include prelude")
+                        },
+                        parser::ParseError::Io(e) => {
+                            log::error!("Problem parsing content: {e}");
+                        }
+                        e => {
+                            log::warn!("Ignored {post_id}: {e}");
+                            if !args.do_not_post {
+                                client
+                                .message_account(
+                                    &username,
+                                    &format!("{GREETING}\n\nUnfortunately I couldn't parse your message. Reason: {e}"),
+                                    Some(post_id),
+                                )
+                                .await?;
+                            }
+                        }
+                    }
                 }
             };
 

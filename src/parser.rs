@@ -37,7 +37,7 @@ impl OrcaSource {
 
 #[derive(Error, Debug)]
 pub enum ParseError {
-    #[error("Line lenghts don't match")]
+    #[error("Line lengths don't match")]
     MismatchLineLengths,
     #[error("No Orca source code found")]
     NoCodeFound,
@@ -45,6 +45,8 @@ pub enum ParseError {
     NoPreludeFound,
     #[error("Lines are too long")]
     LinesTooLong,
+    #[error("IO error: {0}")]
+    Io(std::io::Error)
 }
 
 pub struct ParseConfig<'t> {
@@ -59,8 +61,8 @@ impl<'t> Default for ParseConfig<'t> {
     }
 }
 
-pub(crate) fn parse_orca_code(text: &str, parse_config: &ParseConfig) -> Result<OrcaSource> {
-    let re = Regex::new(r"([a-zA-Z0-9#\.\*=]+\s*\n)*[a-zA-Z0-9#\.\*=]+\s*\n?")?;
+pub(crate) fn parse_orca_code(text: &str, parse_config: &ParseConfig) -> Result<OrcaSource, ParseError> {
+    let re = Regex::new(r"([a-zA-Z0-9#\.\*=]+\s*\n)*[a-zA-Z0-9#\.\*=]+\s*\n?").expect("Regex seems wrong");
 
     match re.find(text) {
         Some(m) => {
@@ -74,11 +76,11 @@ pub(crate) fn parse_orca_code(text: &str, parse_config: &ParseConfig) -> Result<
             let first_len = lines[0].len();
 
             if first_len > parse_config.max_line_length as usize {
-                return Err(ParseError::LinesTooLong.into());
+                return Err(ParseError::LinesTooLong);
             }
 
             if !lines.iter().all(|line| line.len() == first_len) {
-                return Err(ParseError::MismatchLineLengths.into());
+                return Err(ParseError::MismatchLineLengths);
             }
 
             Ok(OrcaSource {
@@ -86,17 +88,17 @@ pub(crate) fn parse_orca_code(text: &str, parse_config: &ParseConfig) -> Result<
                 width: first_len as u8,
             })
         }
-        None => Err(ParseError::NoCodeFound.into()),
+        None => Err(ParseError::NoCodeFound),
     }
 }
 
-pub fn parse_html(html: &str, parse_config: &ParseConfig) -> Result<OrcaSource> {
+pub fn parse_html(html: &str, parse_config: &ParseConfig) -> Result<OrcaSource, ParseError> {
     // get plain text representation, while removing empty lines
-    let plain_str = htmd::convert(html)?;
+    let plain_str = htmd::convert(html).map_err(ParseError::Io)?;
     let plain_lines: Vec<_> = plain_str.lines().filter(|l| !l.trim().is_empty()).collect();
 
     if !plain_lines[0].contains(parse_config.tag) {
-        return Err(ParseError::NoPreludeFound.into());
+        return Err(ParseError::NoPreludeFound);
     }
 
     // little quirk of markdown conversion: it escapes asterisks
