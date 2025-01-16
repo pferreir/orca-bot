@@ -142,9 +142,8 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "No run tag found")]
     fn test_parsing_html_fail_no_tag() {
         let input = "<p><span class=\"h-card\" translate=\"no\"><a href=\"https://fedi.turbofish.cc/@orcabot\" class=\"u-url mention\">@<span>orcabot</span></a></span><br />.....C8.........<br />......8TCDGCGDCE<br />....81X..D..C2..<br />..........Y..A4.<br />...........=0...</p>";
-        parse_html(input, &DEFAULT_PARSE_CONFIG).unwrap();
+        assert!(parse_html(input, &DEFAULT_PARSE_CONFIG).is_err(), "parsing should fail");
     }
 }
